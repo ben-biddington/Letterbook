@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ActivityPub.Types;
@@ -130,6 +131,7 @@ public static class DependencyInjectionExtensions
 		options.AddPolicy(Constants.ApiPolicy, policy =>
 		{
 			policy.RequireAuthenticatedUser();
+			policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme);
 		});
 
 		options.AddPolicy(Constants.ActivityPubPolicy, policy =>
@@ -220,7 +222,18 @@ public static class DependencyInjectionExtensions
 				.ReadFrom.Services(services),
 			true
 		);
-
+		builder.Services.AddAuthentication().AddJwtBearer(options =>
+		{
+			options.TokenValidationParameters = new TokenValidationParameters
+			{
+				ValidateIssuerSigningKey = true,
+				IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration.GetValue<string>("HostSecret")!)),
+				ValidateIssuer = false,
+				ValidateAudience = false,
+				RequireExpirationTime = false,
+				ValidateLifetime = true
+			};
+		});
 		builder.Services.AddApiProperties(builder.Configuration);
 		builder.Services.AddAuthorization(options =>
 		{

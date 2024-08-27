@@ -45,7 +45,7 @@ public class AccountServiceTest : WithMocks
 	{
 		AccountProfileMock.Setup(m => m.RecordAccount(It.IsAny<Account>())).Returns(true);
 
-		var actual = await _accountService.RegisterAccount("test@example.com", "tester", "password");
+		var (actual, _) = await _accountService.RegisterAccount("test@example.com", "tester", "password");
 
 		Assert.NotNull(actual);
 		Assert.True(actual.Succeeded);
@@ -67,7 +67,7 @@ public class AccountServiceTest : WithMocks
 		_mockIdentityManager.UserStore.Setup(m => m.CreateAsync(It.IsAny<Account>(), It.IsAny<CancellationToken>()))
 			.ReturnsAsync(IdentityResult.Failed());
 
-		var actual = await _accountService.RegisterAccount("test@example.com", "tester", "password");
+		var (actual,_) = await _accountService.RegisterAccount("test@example.com", "tester", "password");
 
 		Assert.False(actual.Succeeded);
 		AccountEventServiceMock.VerifyNoOtherCalls();

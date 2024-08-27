@@ -92,7 +92,7 @@ namespace Letterbook.Web.Areas.Identity.Pages.Account
             ExternalLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).ToList();
             if (ModelState.IsValid)
             {
-                var result = await _accounts.RegisterAccount(Input.Email, Input.Handle, Input.Password);
+                var (result, _) = await _accounts.RegisterAccount(Input.Email, Input.Handle, Input.Password);
                 if (result.Succeeded)
                 {
 	                var user = await _userManager.FindByEmailAsync(Input.Email);

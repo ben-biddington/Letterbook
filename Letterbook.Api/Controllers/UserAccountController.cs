@@ -48,30 +48,36 @@ public class UserAccountController : ControllerBase
 			if (!identity.Authenticated) return Unauthorized();
 			// TODO: 2FA
 
-			// TODO: asymmetric signing key
-			var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_hostSecret));
-			var tokenDescriptor = new SecurityTokenDescriptor
-			{
-				Subject = identity,
-				Issuer = _coreOptions.BaseUri().ToString(),
-				Audience = _coreOptions.BaseUri().ToString(),
-				NotBefore = DateTime.UtcNow,
-				Expires = DateTime.UtcNow.AddDays(28),
-				SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
-			};
-			var token = MintToken(tokenDescriptor);
-
-			return Ok(new TokenResponse
-			{
-				AccessToken = token,
-				ExpiresIn = (int)(tokenDescriptor.Expires - DateTime.UtcNow).Value.TotalSeconds,
-				TokenType = "Bearer"
-			});
+			return Ok(NewToken(identity));
 		}
 		catch (RateLimitException e)
 		{
 			return StatusCode(429, new { e.Expiration, e.Message });
 		}
+	}
+
+	private TokenResponse NewToken(AccountIdentity identity)
+	{
+		// TODO: asymmetric signing key
+		var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_hostSecret));
+		var tokenDescriptor = new SecurityTokenDescriptor
+		{
+			Subject = identity,
+			Issuer = _coreOptions.BaseUri().ToString(),
+			Audience = _coreOptions.BaseUri().ToString(),
+			NotBefore = DateTime.UtcNow,
+			Expires = DateTime.UtcNow.AddDays(28),
+			SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
+		};
+
+		var token = MintToken(tokenDescriptor);
+
+		return new TokenResponse
+		{
+			AccessToken = token,
+			ExpiresIn = (int)(tokenDescriptor.Expires - DateTime.UtcNow).Value.TotalSeconds,
+			TokenType = "Bearer"
+		};
 	}
 
 	[HttpPost]
@@ -86,12 +92,35 @@ public class UserAccountController : ControllerBase
 
 	[AllowAnonymous]
 	[HttpPost]
+	[Route("/lb/v2/user_account/register")]
+	public async Task<IActionResult> RegisterVersionTwo([FromBody] RegistrationRequest registration)
+	{
+		try
+		{
+			var (registrationResult, account) = await _accountService
+				.RegisterAccount(registration.Email, registration.Handle, registration.Password);
+
+			if (!registrationResult.Succeeded) return BadRequest(registrationResult.Errors);
+
+			var identity = await _accountService.AuthenticatePassword(registration.Email, registration.Password);
+			if (!identity.Authenticated) return Unauthorized();
+
+			return Ok(new RegistrationResult { Token = NewToken(identity), AccountId = account.Id.ToString() });
+		}
+		catch (Exception e)
+		{
+			return BadRequest(e);
+		}
+	}
+
+	[AllowAnonymous]
+	[HttpPost]
 	[ProducesResponseType<TokenResponse>(StatusCodes.Status200OK)]
 	public async Task<IActionResult> Register([FromBody] RegistrationRequest registration)
 	{
 		try
 		{
-			var registerAccount = await _accountService
+			var (registerAccount, _) = await _accountService
 				.RegisterAccount(registration.Email, registration.Handle, registration.Password);
 
 			if (registerAccount is null) return Forbid();

@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using Serilog;
 using Serilog.Enrichers.Span;
 using Serilog.Events;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace Letterbook.Api;
 

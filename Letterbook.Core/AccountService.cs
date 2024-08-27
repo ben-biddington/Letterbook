@@ -60,29 +60,29 @@ public class AccountService : IAccountService, IDisposable
 		}
 	}
 
-	public async Task<IdentityResult> RegisterAccount(string email, string handle, string password)
+	public async Task<(IdentityResult, Account)> RegisterAccount(string email, string handle, string password)
 	{
 		var baseUri = _opts.BaseUri();
 		// TODO: write our own unified query for this
 		if (await _identityManager.FindByNameAsync(handle) is not null)
-			return IdentityResult.Failed(new IdentityError
+			return (IdentityResult.Failed(new IdentityError
 			{
 				Code = "Duplicate",
 				Description = "An account with that username already exists"
-			});
+			}), new Account());
 		if (await _identityManager.FindByEmailAsync(email) is not null)
-			return IdentityResult.Failed(new IdentityError
+			return (IdentityResult.Failed(new IdentityError
 			{
 				Code = "Duplicate",
 				Description = "An account is already registered using that email"
-			});
+			}), new Account());
 		var account = Account.CreateAccount(baseUri, email, handle);
 
 		IdentityResult created;
 		try
 		{
 			created = await _identityManager.CreateAsync(account, password);
-			if (!created.Succeeded) return created;
+			if (!created.Succeeded) return (created, account);
 		}
 		catch (Exception ex)
 		{
@@ -92,7 +92,7 @@ public class AccountService : IAccountService, IDisposable
 		await _accountAdapter.Commit();
 		_logger.LogInformation("Created new account {AccountId}", account.Id);
 		await _eventPublisherService.Created(account);
-		return created;
+		return (created, account);
 	}
 
 	public async Task<Account?> LookupAccount(Guid id)

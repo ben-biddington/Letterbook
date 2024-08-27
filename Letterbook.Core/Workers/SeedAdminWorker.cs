@@ -38,7 +38,7 @@ public class SeedAdminWorker : IScopedWorker
 				return;
 			}
 
-			var admin = await _accountService.RegisterAccount($"admin@letterbook.example", "admin",
+			var (admin, _) = await _accountService.RegisterAccount($"admin@letterbook.example", "admin",
 				"Password1!");
 			if (admin is not null)
 			{

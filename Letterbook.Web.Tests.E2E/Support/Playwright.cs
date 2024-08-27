@@ -12,7 +12,7 @@ public static class Playwright
 	*/
 	public static void Install()
 	{
-		var exitCode = Microsoft.Playwright.Program.Main(new [] { "install", "firefox" });
+		var exitCode = Microsoft.Playwright.Program.Main(new [] { "install" });
 
 		if (exitCode != 0)
 		{
