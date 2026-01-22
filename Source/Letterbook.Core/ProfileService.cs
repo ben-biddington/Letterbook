@@ -27,11 +27,13 @@ public class ProfileService : IProfileService, IAuthzProfileService
 	private readonly IHostSigningKeyProvider _hostSigningKeyProvider;
 	private readonly IActivityScheduler _activity;
 	private readonly IAuthorizationService _authz;
+	private readonly IWebFingerProfileLookup _webFingerLookup;
 	private IEnumerable<Claim> _claims;
 
 	public ProfileService(ILogger<ProfileService> logger, IOptions<CoreOptions> options, Instrumentation instrumentation,
 		IDataAdapter data, IProfileEventPublisher profileEvents, IActivityPubClient client, IApCrawlScheduler crawler,
-		IHostSigningKeyProvider hostSigningKeyProvider, IActivityScheduler activity, IAuthorizationService authz)
+		IHostSigningKeyProvider hostSigningKeyProvider, IActivityScheduler activity, IAuthorizationService authz,
+		IWebFingerProfileLookup webFingerLookup)
 	{
 		_logger = logger;
 		_instrumentation = instrumentation;
@@ -43,6 +45,7 @@ public class ProfileService : IProfileService, IAuthzProfileService
 		_hostSigningKeyProvider = hostSigningKeyProvider;
 		_activity = activity;
 		_authz = authz;
+		_webFingerLookup = webFingerLookup;
 		_claims = default!;
 	}
 
@@ -207,7 +210,7 @@ public class ProfileService : IProfileService, IAuthzProfileService
 
 	public async Task<Profile?> LookupProfile(ProfileId profileId, ProfileId? relatedProfile)
 	{
-		var result = await _data.Profiles(profileId).WithRelation(relatedProfile).FirstOrDefaultAsync();
+		var result = await LookupProfileById(profileId, relatedProfile);
 		if (result?.FollowersCollection.FirstOrDefault() is {} relation && relation.State == FollowState.Blocked)
 		{
 			return Redact(result);
@@ -218,13 +221,28 @@ public class ProfileService : IProfileService, IAuthzProfileService
 
 	public async Task<Profile?> LookupProfile(Uri fediId, ProfileId? relatedProfile)
 	{
-		var result = await _data.Profiles(fediId).WithRelation(relatedProfile).FirstOrDefaultAsync();
+		var result = await LookupProfileByUri(fediId, relatedProfile);
+
 		if (result?.FollowersCollection.FirstOrDefault() is {} relation && relation.State == FollowState.Blocked)
 		{
 			return Redact(result);
 		}
 
 		return result;
+	}
+
+	private async Task<Profile?> LookupProfileByUri(Uri fediId, ProfileId? relatedProfile)
+	{
+		return await _data.Profiles(fediId).WithRelation(relatedProfile).FirstOrDefaultAsync()
+		       ?? await _webFingerLookup.LookupProfileByUri(fediId, relatedProfile);
+	}
+
+	private async Task<Profile?> LookupProfileById(ProfileId profileId, ProfileId? relatedProfile)
+	{
+		var firstOrDefaultAsync = await _data.Profiles(profileId).WithRelation(relatedProfile).FirstOrDefaultAsync();
+
+		return firstOrDefaultAsync
+		       ?? await _webFingerLookup.LookupProfileById(profileId, relatedProfile);
 	}
 
 	public IAsyncEnumerable<Profile> FindProfiles(string handle, string host)

@@ -1,6 +1,4 @@
-using System.Net;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using Bogus;
 using Letterbook.Core.Adapters;
 using Letterbook.Core.Exceptions;
@@ -22,6 +20,7 @@ public class ProfileServiceTests : WithMocks
 	private FakeAccount _fakeAccount;
 	private FakeProfile _fakeProfile;
 	private Profile _profile;
+	private Mock<IWebFingerProfileLookup> _fakeWebFingerProfileLookup;
 
 	public ProfileServiceTests(ITestOutputHelper output)
 	{
@@ -31,9 +30,11 @@ public class ProfileServiceTests : WithMocks
 		_fakeProfile = new FakeProfile("letterbook.example");
 		CoreOptionsMock.Value.MaxCustomFields = 2;
 
+		_fakeWebFingerProfileLookup = new Mock<IWebFingerProfileLookup>(MockBehavior.Strict);
 		_service = new ProfileService(Mock.Of<ILogger<ProfileService>>(), CoreOptionsMock, Mock.Of<Instrumentation>(),
 			DataAdapterMock.Object, Mock.Of<IProfileEventPublisher>(), ActivityPubClientMock.Object, ApCrawlerSchedulerMock.Object,
-			Mock.Of<IHostSigningKeyProvider>(), ActivityPublisherMock.Object, AuthorizationServiceMock.Object);
+			Mock.Of<IHostSigningKeyProvider>(), ActivityPublisherMock.Object, AuthorizationServiceMock.Object,
+			_fakeWebFingerProfileLookup.Object);
 		_profile = _fakeProfile.Generate();
 
 		DataAdapterMock.Setup(m => m.Profiles(Profile.SystemInstanceId))
@@ -508,4 +509,36 @@ public class ProfileServiceTests : WithMocks
 
 		Assert.Equal(FollowState.None, actual?.State);
 	}
+
+	[Fact(DisplayName = "Should check the local data set and fallback to webfinger if we don't have it (by Uri)")]
+	public async Task LookupProfileByUriFallBackToWebFinger()
+	{
+		var theWebFingerProfile = _fakeProfile.Generate();
+
+		DataAdapterMock.Setup(it => it.Profiles(It.IsAny<Uri>())).Returns(new List<Profile>(0).BuildMock());
+
+		_fakeWebFingerProfileLookup.Setup(it => it.LookupProfileByUri(theWebFingerProfile.FediId, It.IsAny<ProfileId?>()))
+			.Returns(Task.FromResult<Profile?>(theWebFingerProfile));
+
+		var actualProfile = await _service.LookupProfile(theWebFingerProfile.FediId, null);
+
+		Assert.Same(theWebFingerProfile, actualProfile);
+	}
+
+	[Fact(DisplayName = "Should check the local data set and fallback to webfinger if we don't have it (by id)")]
+	public async Task LookupProfileByIdFallBackToWebFinger()
+	{
+		var theWebFingerProfile = _fakeProfile.Generate();
+
+		DataAdapterMock.Setup(it => it.Profiles(It.IsAny<ProfileId>())).Returns(new List<Profile>(0).BuildMock());
+
+		_fakeWebFingerProfileLookup.Setup(it => it.LookupProfileById(theWebFingerProfile.Id, It.IsAny<ProfileId?>()))
+			.Returns(Task.FromResult<Profile?>(theWebFingerProfile));
+
+		var actualProfile = await _service.LookupProfile(theWebFingerProfile.Id, null);
+
+		Assert.Same(theWebFingerProfile, actualProfile);
+	}
+
+	// TEST: returns null if profile not found in either place
 }

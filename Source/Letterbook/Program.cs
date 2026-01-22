@@ -7,6 +7,7 @@ using Letterbook.Api.Authentication.HttpSignature.DependencyInjection;
 using Letterbook.Api.Swagger;
 using Letterbook.AspNet;
 using Letterbook.Core;
+using Letterbook.Core.Adapters;
 using Letterbook.Core.Extensions;
 using Letterbook.Core.Models;
 using Letterbook.Web;
@@ -78,6 +79,8 @@ public class Program
 		});
 		builder.Services.AddMassTransit(bus => bus.AddWorkerBus(builder.Configuration)
 			.AddWorkers(builder.Configuration));
+
+		builder.Services.AddSingleton<IWebFingerProfileLookup, DevNullWebFingerProfileLookup>();
 
 		// builder.WebHost.UseUrls(coreOptions.BaseUri().ToString());
 

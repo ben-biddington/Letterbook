@@ -116,6 +116,7 @@ public static class DependencyInjectionExtensions
 		// Register Adapters
 		services.AddSingleton<IActivityPubDocument, Document>();
 		services.AddDbAdapter(configuration);
+		services.AddSingleton<IWebFingerProfileLookup, DevNullWebFingerProfileLookup>();
 		services.AddFeedsAdapter(configuration);
 		services.TryAddTypesModule();
 
