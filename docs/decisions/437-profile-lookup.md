@@ -186,6 +186,91 @@ index 1761c30..527cd4c 100644
 
 ```
 
+### Try and implementation of IWebFingerProfileLookup
+
+We already have `WebFingerClient` which knows how to search for profiles.
+
+Its protocol takes text queries:
+
+```csharp
+public Task<IEnumerable<Profile>> SearchProfiles(string query, CancellationToken cancellationToken);
+```
+
+So we have to translate from ids to text.
+
+(PC is freezing at times and when I check CPU it reads 0.)
+
+### Webfinger implementation problems
+
+These works:
+
+```
+curl -vk https://mastodon.social/.well-known/webfinger?resource=acct%3Aben@mastodon.social
+curl -vk https://mastodon.social/.well-known/webfinger?resource=acct%3Aben%40mastodon.social
+```
+
+Based on [the notes](https://docs.joinmastodon.org/spec/webfinger/).
+
+So it needs the full `acct` part.
+
+This test fails:
+
+```csharp
+// https://docs.joinmastodon.org/spec/webfinger/
+[Fact(DisplayName = "Should parse query into correct URL")]
+public async Task ParsesQueryIntoUrl()
+{
+    HttpMessageHandlerMock.SetupResponse(m =>
+    {
+        m.StatusCode = HttpStatusCode.OK;
+        m.Content = new StringContent("{}", new UTF8Encoding(), new MediaTypeHeaderValue("application/jrd+json"));
+    });
+
+    ActivityPubClientMock.Setup(m => m.Fetch<Models.Profile>(_profile.FediId, It.IsAny<CancellationToken>()))
+        .ReturnsAsync(_profile);
+
+    await _webfinger.SearchProfiles($"@{_profile.Handle}@{_profile.FediId.Authority}", _cancel.Token);
+
+    HttpMessageHandlerMock.Verify(
+        it => it.SendMessageAsync(It.Is<HttpRequestMessage>(
+            message => message.RequestUri == new Uri($"https://{_profile.FediId.Authority}/.well-known/webfinger?resource=acct%3A${_profile.Handle}@{_profile.FediId.Authority}")
+    ), It.IsAny<CancellationToken>()));
+}
+```
+
+```
+Performed invocations:
+
+   Mock<MockableMessageHandler:1> (it):
+
+      MockableMessageHandler.SendMessageAsync(Method: GET, RequestUri: 'https://peer.example/.well-known/webfinger?resource=acct%3AFaustino.Treutel64', Version: 1.1, Content: <null>, Headers:
+{
+}, CancellationToken)
+```
+
+So I am curious about that.
+
+### WebFingerClient and IActivityPubClient
+
+In practice `WebFingerClient` depends on `ActivityPubClient` which makes network calls to fetch data.
+
+In order to skewer `WebFingerClient` you have to either fake it or provide a real one which is hard to do because the ctor is like this:
+
+```csharp
+public Client(ILogger<Client> logger, HttpClient httpClient, IJsonLdSerializer jsonLdSerializer, IActivityPubDocument document)
+{
+    _logger = logger;
+    _httpClient = httpClient;
+    _jsonLdSerializer = jsonLdSerializer;
+    _document = document;
+}
+```
+
+Providing a fake means you can't make a real integration test that for example queries for a known profile.
+
+Creating one is complected by `JsonLdSerializer` which is very difficult to construct. It seems it is tightly bound to
+dependency injection framework.
+
 # Notes
 
 ## docs/IntegrationTests.Readme.md is misleading

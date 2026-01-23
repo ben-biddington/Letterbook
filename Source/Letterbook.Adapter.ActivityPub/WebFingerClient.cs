@@ -6,6 +6,33 @@ using Microsoft.Extensions.Logging;
 
 namespace Letterbook.Adapter.ActivityPub;
 
+public class WebFingerProfileLookup : IWebFingerProfileLookup
+{
+	private WebFingerClient _client;
+
+	public WebFingerProfileLookup(
+		ILogger<WebFingerClient> logger,
+		HttpClient httpClient,
+		IActivityPubClient apClient)
+	{
+		_client = new WebFingerClient(logger, httpClient, apClient);
+	}
+
+	public async Task<Models.Profile?> LookupProfileByUri(Uri fediId, Models.ProfileId? relatedProfile)
+	{
+		var results = (await _client.SearchProfiles($"{fediId.PathAndQuery.TrimStart('/')}@{fediId.Host}", CancellationToken.None)).ToList();
+
+		var lookupProfileByUri = results.FirstOrDefault();
+
+		return lookupProfileByUri;
+	}
+
+	public Task<Models.Profile?> LookupProfileById(Models.ProfileId profileId, Models.ProfileId? relatedProfile)
+	{
+		throw new NotImplementedException();
+	}
+}
+
 public class WebFingerClient : IGlobalSearchProvider, IProfileSearchProvider
 {
 	private readonly ILogger<WebFingerClient> _logger;
@@ -24,7 +51,7 @@ public class WebFingerClient : IGlobalSearchProvider, IProfileSearchProvider
 
 	public async Task<IEnumerable<Models.Profile>> SearchProfiles(string query, CancellationToken cancellationToken)
 	{
-		var parts = query.Split('@', 2,
+		var parts = query.Split('@', 3,
 			StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 		if (parts.Length != 2)
 		{

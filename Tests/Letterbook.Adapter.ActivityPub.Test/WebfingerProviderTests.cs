@@ -37,6 +37,32 @@ public class WebfingerProviderTests : WithMocks
 		Assert.NotNull(_webfinger);
 	}
 
+	// https://docs.joinmastodon.org/spec/webfinger/
+	[Fact(DisplayName = "Should parse query into correct URL")]
+	public async Task ParsesQueryIntoUrl()
+	{
+		HttpMessageHandlerMock.SetupResponse(m =>
+		{
+			m.StatusCode = HttpStatusCode.OK;
+			m.Content = new StringContent("{}", new UTF8Encoding(), new MediaTypeHeaderValue("application/jrd+json"));
+		});
+
+		ActivityPubClientMock.Setup(m => m.Fetch<Models.Profile>(_profile.FediId, It.IsAny<CancellationToken>()))
+			.ReturnsAsync(_profile);
+
+		await _webfinger.SearchProfiles("@ben@mastodon.social", _cancel.Token);
+
+		HttpMessageHandlerMock.Verify(it => it.SendMessageAsync(
+			It.Is<HttpRequestMessage>(message =>
+				message.RequestUri ==
+				new Uri(
+					"https://mastodon.social/.well-known/webfinger?resource=acct%3Aben%40mastodon.social")
+			), It.IsAny<CancellationToken>()));
+
+		// https://mastodon.social/.well-known/webfinger?resource=acct%3Aben%40mastodon.social
+		// https://peer.example/.well-known/webfinger?resource=acct%3AAhmed.Von%40peer.example
+	}
+
 	[Fact(DisplayName = "Should return results from successful query")]
 	public async Task CanSearchSuccess()
 	{
